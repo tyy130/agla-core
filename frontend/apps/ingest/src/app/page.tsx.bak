@@ -1,0 +1,132 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { Upload, Network, Zap, RefreshCw, Database, Search, Shield, ArrowRight, Send } from "lucide-react";
+
+export default function IngestPage() {
+  const [ingesting, setIngesting] = useState(false);
+  const [selectedTier, setSelectedTier] = useState("essential");
+  const [stats, setStats] = useState({ indexed: false, doc_count: 0 });
+
+  const fetchStatus = async () => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/status`);
+      const data = await res.json();
+      setStats(data);
+    } catch (e) {
+      console.error("Status fetch failed", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatus();
+  }, []);
+
+  const handleWorkspaceInit = async () => {
+    setIngesting(true);
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/initialize?tier=${selectedTier}`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        fetchStatus();
+        alert(`Success: ${data.message}`);
+      } else {
+        alert(data.message || "No indexable documents found.");
+      }
+    } catch (e) {
+      alert("Error: Ingestion server unreachable.");
+    } finally {
+      setIngesting(false);
+    }
+  };
+
+  return (
+    <div className="p-16 space-y-12 min-h-full overflow-y-auto">
+      <div className="space-y-4">
+        <h1 className="text-5xl font-black tracking-tighter">Knowledge Base</h1>
+        <p className="text-gray-500 max-w-2xl font-medium leading-relaxed text-lg">
+          Manage your enterprise intelligence fleet. Scan directories, define indexing tiers, and monitor data integrity.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-8">
+          <div className="glass-panel p-10 rounded-[40px] space-y-8 border-white/5 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 text-blue-500/10 rotate-12">
+               <Zap size={120} />
+            </div>
+            
+            <div className="flex items-center justify-between relative z-10">
+              <h2 className="text-2xl font-bold flex items-center gap-3">
+                <Search size={24} className="text-blue-400" /> Folder Scan Initialization
+              </h2>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] px-4 py-2 bg-blue-500/10 text-blue-400 rounded-full border border-blue-500/20 shadow-lg shadow-blue-500/10">
+                /home/tyler/Desktop
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 relative z-10">
+              {['lite', 'essential', 'comprehensive'].map((t) => (
+                <button 
+                  key={t}
+                  onClick={() => setSelectedTier(t)}
+                  className={`p-8 rounded-3xl border transition-all text-left group flex flex-col h-full ${
+                    selectedTier === t 
+                      ? 'border-blue-500 bg-blue-500/10 shadow-lg shadow-blue-500/10' 
+                      : 'border-white/5 bg-white/2 hover:border-white/20'
+                  }`}
+                >
+                  <div className={`font-bold capitalize text-lg mb-2 ${selectedTier === t ? 'text-white' : 'text-gray-400'}`}>{t}</div>
+                  <div className="text-xs text-gray-500 leading-relaxed font-medium">
+                    {t === 'lite' && "Vector-only scan. Fastest indexing, minimal footprint."}
+                    {t === 'essential' && "Balanced Vector + Graph extraction. Recommended for most use cases."}
+                    {t === 'comprehensive' && "Deep graph traversal. Full contextual awareness at max cost."}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <button 
+              onClick={handleWorkspaceInit}
+              disabled={ingesting}
+              className="w-full py-5 bg-white text-black rounded-[24px] font-black text-sm flex items-center justify-center gap-3 hover:bg-gray-200 transition-all shadow-xl shadow-white/5 disabled:opacity-50 active:scale-[0.98] relative z-10"
+            >
+              {ingesting ? <RefreshCw className="animate-spin" size={20} /> : <Zap size={20} className="fill-black" />}
+              {ingesting ? "CONSTRUCTING INDEX..." : "BEGIN RECURSIVE SCAN"}
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="p-10 rounded-[40px] glass-panel bg-gradient-to-br from-green-500/5 to-blue-500/5 border-white/5 shadow-2xl">
+            <div className="flex items-center gap-3 text-green-400 mb-8">
+              <Database size={24} />
+              <h3 className="font-bold uppercase tracking-[0.2em] text-[10px]">Index Statistics</h3>
+            </div>
+            <div className="space-y-6">
+              <div className="flex justify-between items-end border-b border-white/5 pb-6">
+                <span className="text-gray-500 text-sm font-medium uppercase tracking-widest">Total Chunks</span>
+                <span className="text-5xl font-black tracking-tighter">{stats.doc_count}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs uppercase tracking-[0.1em] font-black">
+                <span className="text-gray-500">System Status</span>
+                <span className={stats.indexed ? "text-green-400" : "text-yellow-400"}>
+                  {stats.indexed ? "Index Ready" : "Init Required"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-10 rounded-[40px] glass-card border-dashed border-white/10 flex flex-col items-center justify-center text-center space-y-4 py-16 opacity-60 hover:opacity-100 transition-opacity cursor-pointer">
+             <Upload size={40} className="text-gray-600" />
+             <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-loose">
+               Manual Ingestion<br/>Drag & Drop
+             </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,56 @@
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# 1. Dependency Layer
+COPY package.json package-lock.json ./
+# Copy workspace definitions
+COPY apps/shell/package.json ./apps/shell/
+COPY apps/cortex/package.json ./apps/cortex/
+COPY apps/ingest/package.json ./apps/ingest/
+COPY apps/control/package.json ./apps/control/
+
+# Install dependencies (including devDependencies for build)
+RUN npm ci --legacy-peer-deps
+
+# 2. Build Layer
+COPY . .
+ARG APP_NAME
+ENV NEXT_PRIVATE_LOCAL_WEBPACK=true
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Build the specific app
+RUN npm run build -w ${APP_NAME}
+
+# 3. Production Runner Layer
+FROM node:20-alpine AS runner
+ARG APP_NAME
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Create a non-root user
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copy necessary files from builder
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/package-lock.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/${APP_NAME}/package.json ./apps/${APP_NAME}/
+COPY --from=builder /app/apps/${APP_NAME}/.next ./apps/${APP_NAME}/.next
+COPY --from=builder /app/apps/${APP_NAME}/public ./apps/${APP_NAME}/public
+COPY --from=builder /app/apps/${APP_NAME}/next.config.js ./apps/${APP_NAME}/
+
+# Set ownership
+RUN chown -R nextjs:nodejs /app
+
+USER nextjs
+
+ARG APP_NAME
+ENV APP_NAME=${APP_NAME}
+ENV PORT=3000
+
+# We need to run the start command from the root using workspaces
+CMD npm run start -w ${APP_NAME}

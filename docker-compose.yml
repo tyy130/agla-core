@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  # Vector Database for Binary Quantized Embeddings
+  qdrant:
+    image: qdrant/qdrant:v1.12.0
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./infrastructure/qdrant_data:/qdrant/storage
+
+  # Graph Database for LightRAG Structures
+  falkordb:
+    image: falkordb/falkordb:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./infrastructure/falkordb_data:/data
+
+  # Relational DB for User Profiles & Personalization logs
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=agla_admin
+      - POSTGRES_PASSWORD=agla_password
+      - POSTGRES_DB=agla_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./infrastructure/postgres_data:/var/lib/postgresql/data
+
+  # Semantic Cache
+  redis:
+    image: redis:alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - ./infrastructure/redis_data:/data
+
+  # Backend API (Python/FastAPI)
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      - QDRANT_URL=http://qdrant:6333
+      - FALKORDB_URL=redis://falkordb:6379
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://agla_admin:agla_password@postgres:5432/agla_db
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      - qdrant
+      - falkordb
+      - redis
+      - postgres
+    volumes:
+      - ./backend:/app
+      - /home/tyler/Desktop:/data
+
+  # Microfrontend: Shell (Host)
+  shell:
+    build: ./frontend/apps/shell
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/apps/shell:/app
+      - /app/node_modules
+      - /app/.next
+
+  # Microfrontend: AGLA (Chat Module)
+  agla_mfe:
+    build: ./frontend/apps/agla
+    ports:
+      - "3001:3001"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend/apps/agla:/app
+      - /app/node_modules
+      - /app/.next
+
+  # Microfrontend: Ingest (KB Module)
+  ingest_mfe:
+    build: ./frontend/apps/ingest
+    ports:
+      - "3002:3002"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    volumes:
+      - ./frontend/apps/ingest:/app
+      - /app/node_modules
+      - /app/.next
+
+  # Microfrontend: Control (Admin Module)
+  control_mfe:
+    build: ./frontend/apps/control
+    ports:
+      - "3003:3003"
+    volumes:
+      - ./frontend/apps/control:/app
+      - /app/node_modules
+      - /app/.next
