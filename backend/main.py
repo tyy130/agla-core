@@ -99,7 +99,8 @@ async def ingest_endpoint(
         return await process_document(content, file.filename, tier, file_path, tenant_id)
     except Exception as e:
         logger.error(f"Ingest Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Do not expose internal error details to the client
+        raise HTTPException(status_code=500, detail="Internal server error during ingestion")
 
 @app.get("/documents/{doc_id}")
 async def get_document(doc_id: str, tenant_id: str = "default_tenant", db: Session = Depends(get_db)):
