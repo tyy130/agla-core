@@ -130,6 +130,7 @@ async def process_document(file_content: bytes, filename: str, tier: str = "esse
 
     except Exception as e:
         logger.error(f"Processing Error {filename}: {e}", exc_info=True)
-        return {"status": "error", "message": str(e)}
+        # Return a generic error message to avoid exposing internal details
+        return {"status": "error", "message": "Failed to process document"}
     finally:
         db.close()
